@@ -1,0 +1,16 @@
+[project]
+name = "eve-consumer"
+version = "0.1.0"
+description = "Small Redpanda consumer for inspecting EVE market events."
+requires-python = ">=3.13"
+dependencies = ["confluent-kafka>=2.16.0,<3.0.0"]
+
+[project.scripts]
+eve-consumer = "eve_consumer.cli:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "eve_consumer", from = "src" }]

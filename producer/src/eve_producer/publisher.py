@@ -1,6 +1,10 @@
+import logging
+
 from confluent_kafka import Producer
 
 from .models import MarketEvent
+
+logger = logging.getLogger(__name__)
 
 
 class DeliveryError(RuntimeError):
@@ -73,6 +77,7 @@ class MarketPublisher:
 
     def flush(self) -> None:
         """Flush queued messages and report incomplete deliveries."""
+        logger.info("Flushing outstanding Kafka messages...")
         remaining = self.producer.flush(10)
         self._check_errors()
         if remaining:
@@ -80,9 +85,31 @@ class MarketPublisher:
         if self.pending:
             raise DeliveryError(f"{self.pending} Kafka message(s) missing delivery confirmation")
 
-    def close(self) -> None:
-        """Confirm queued messages, then close the Kafka producer."""
+    def close(self, abort: bool = False) -> None:
+        """Close the producer, discarding pending messages on interruption.
+
+        Args:
+            abort: Purge pending messages immediately instead of waiting for delivery.
+        """
         try:
-            self.flush()
+            if abort:
+                logger.info(
+                    "Discarding %d pending Kafka %s after shutdown request...",
+                    self.pending,
+                    "message" if self.pending == 1 else "messages",
+                )
+                self.producer.purge()
+                self.producer.poll(0)
+            else:
+                try:
+                    self.flush()
+                except BaseException:
+                    self.producer.purge()
+                    self.producer.poll(0)
+                    raise
         finally:
-            self.producer.close()
+            closed = self.producer.close()
+            if closed is False:
+                raise DeliveryError("Kafka producer did not close")
+            self.pending = 0
+            logger.info("Kafka producer closed, %d messages pending", self.pending)

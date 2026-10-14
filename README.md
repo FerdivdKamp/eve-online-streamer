@@ -45,6 +45,9 @@ After it runs you can visit and chec its Swagger UI
 
 
 
+## Redpanda
+
+See Infra for steps to get it running.
 
 ## Documentation
 
