@@ -1,7 +1,7 @@
 import json
 import unittest
 from copy import deepcopy
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
@@ -11,7 +11,7 @@ import requests
 from pydantic import ValidationError
 
 from eve_producer.api import MarketClient
-from eve_producer.cli import run, run_api_only, run_kafka_only
+from eve_producer.cli import main, run, run_api_only, run_kafka_only
 from eve_producer.config import Settings
 from eve_producer.models import MarketEvent, MarketItem
 from eve_producer.publisher import DeliveryError, MarketPublisher
@@ -229,6 +229,21 @@ class PublishingTests(unittest.TestCase):
         producer.flush.return_value = 1
         with self.assertRaises(DeliveryError):
             MarketPublisher("unused", "market", producer).close()
+        producer.purge.assert_called_once()
+        producer.poll.assert_called_once_with(0)
+        producer.close.assert_called_once()
+
+    def test_interrupt_during_flush_purges_before_close(self):
+        """Stop waiting for delivery when Ctrl+C interrupts a flush."""
+        producer = Mock()
+        producer.flush.side_effect = KeyboardInterrupt()
+        publisher = MarketPublisher("unused", "market", producer)
+
+        with self.assertRaises(KeyboardInterrupt):
+            publisher.close()
+
+        producer.purge.assert_called_once()
+        producer.poll.assert_called_once_with(0)
         producer.close.assert_called_once()
 
     def test_successful_delivery_is_confirmed_by_callback(self):
@@ -348,7 +363,11 @@ class LifecycleTests(unittest.TestCase):
                     run(Settings(max_retries=0, _env_file=None), once=True, rate=0)
 
                 session_class.return_value.close.assert_called_once()
-                producer_class.return_value.flush.assert_called_once_with(10)
+                if isinstance(failure, KeyboardInterrupt):
+                    producer_class.return_value.flush.assert_not_called()
+                    producer_class.return_value.purge.assert_called_once()
+                else:
+                    producer_class.return_value.flush.assert_called_once_with(10)
                 producer_class.return_value.close.assert_called_once()
 
     def test_run_closes_http_and_kafka_after_publish_error(self):
@@ -410,6 +429,20 @@ class ThrottleTests(unittest.TestCase):
 
     @patch("eve_producer.cli.MarketPublisher")
     @patch("eve_producer.cli.MarketClient")
+    def test_max_events_stops_and_closes_after_exact_count(self, client_class, publisher_class):
+        """Publish exactly the requested count and close both transports."""
+        item = MarketItem.model_validate(ITEM)
+        fetched_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        client_class.return_value.observations.return_value = iter([(item, fetched_at)] * 100)
+
+        run(Settings(_env_file=None), rate=0, max_events=50)
+
+        self.assertEqual(publisher_class.return_value.publish.call_count, 50)
+        publisher_class.return_value.close.assert_called_once()
+        client_class.return_value.close.assert_called_once()
+
+    @patch("eve_producer.cli.MarketPublisher")
+    @patch("eve_producer.cli.MarketClient")
     @patch("eve_producer.cli.RateLimiter")
     @patch("eve_producer.models.datetime")
     def test_event_timestamp_is_assigned_after_each_wait(
@@ -465,6 +498,33 @@ class SmokeModeTests(unittest.TestCase):
         publisher_class.assert_not_called()
 
     @patch("eve_producer.cli.MarketClient")
+    def test_api_only_max_events_limits_output(self, client_class):
+        """Print only the requested number of API observations."""
+        item = MarketItem.model_validate(ITEM)
+        client_class.return_value.observations.return_value = iter(
+            [(item, datetime.now(timezone.utc))] * 5
+        )
+        output = StringIO()
+        with redirect_stdout(output):
+            run_api_only(Settings(_env_file=None), max_events=2)
+        self.assertEqual(len(output.getvalue().splitlines()), 2)
+        client_class.return_value.close.assert_called_once()
+
+    @patch("eve_producer.cli.run")
+    def test_cli_passes_max_events_to_producer(self, run_mock):
+        """Pass the CLI message limit to the producer loop."""
+        with patch("sys.argv", ["eve-producer", "--max-events", "50"]):
+            main()
+        self.assertEqual(run_mock.call_args.kwargs["max_events"], 50)
+
+    def test_cli_rejects_nonpositive_max_events(self):
+        """Reject limits that cannot publish any messages."""
+        with patch("sys.argv", ["eve-producer", "--max-events", "0"]):
+            with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as error:
+                main()
+        self.assertEqual(error.exception.code, 2)
+
+    @patch("eve_producer.cli.MarketClient")
     @patch("eve_producer.cli.MarketPublisher")
     @patch("eve_producer.cli.datetime")
     def test_kafka_only_publishes_sample_without_api(
@@ -481,6 +541,90 @@ class SmokeModeTests(unittest.TestCase):
         cli_datetime.now.assert_called_once_with(timezone.utc)
         publisher_class.return_value.close.assert_called_once()
         client_class.assert_not_called()
+
+    @patch("eve_producer.cli.MarketPublisher")
+    @patch("eve_producer.cli.datetime")
+    def test_kafka_only_max_events_repeats_sample(self, cli_datetime, publisher_class):
+        """Publish the requested sample count with a fresh time for each copy."""
+        sample = Path(__file__).resolve().parents[1] / "examples" / "sample_event.json"
+        publish_times = [
+            datetime(2026, 10, 14, 10, second, tzinfo=timezone.utc) for second in range(3)
+        ]
+        cli_datetime.now.side_effect = publish_times
+
+        run_kafka_only(Settings(_env_file=None), sample, max_events=3, rate=0)
+
+        events = [call.args[0] for call in publisher_class.return_value.publish.call_args_list]
+        self.assertEqual([event.event_timestamp for event in events], publish_times)
+        publisher_class.return_value.close.assert_called_once()
+
+    @patch("eve_producer.cli.run_kafka_only")
+    def test_cli_passes_max_events_to_kafka_only(self, run_mock):
+        """Pass the requested sample count and rate to Kafka-only mode."""
+        with patch(
+            "sys.argv",
+            [
+                "eve-producer", "--kafka-only", "--event-file", "examples/sample_event.json",
+                "--max-events", "50", "--rate", "0",
+            ],
+        ):
+            main()
+        self.assertEqual(run_mock.call_args.kwargs["max_events"], 50)
+        self.assertEqual(run_mock.call_args.kwargs["rate"], 0)
+
+    @patch("eve_producer.publisher.Producer")
+    def test_kafka_only_interrupt_purges_pending_delivery(self, producer_class):
+        """Abort Kafka-only delivery promptly after Ctrl+C."""
+        sample = Path(__file__).resolve().parents[1] / "examples" / "sample_event.json"
+        producer_class.return_value.produce.side_effect = KeyboardInterrupt()
+
+        with self.assertRaises(KeyboardInterrupt):
+            run_kafka_only(Settings(_env_file=None), sample)
+
+        producer_class.return_value.flush.assert_not_called()
+        producer_class.return_value.purge.assert_called_once()
+        producer_class.return_value.close.assert_called_once()
+
+    @patch("eve_producer.publisher.Producer")
+    def test_kafka_only_logs_graceful_shutdown_in_order(self, producer_class):
+        """Report shutdown, flushing, closure, and stop in that order."""
+        sample = Path(__file__).resolve().parents[1] / "examples" / "sample_event.json"
+        producer = producer_class.return_value
+        producer.flush.side_effect = lambda _timeout: producer.produce.call_args.kwargs[
+            "on_delivery"
+        ](None, Mock()) or 0
+        with patch("sys.argv", ["eve-producer", "--kafka-only", "--event-file", str(sample)]):
+            with self.assertLogs("eve_producer", level="INFO") as captured:
+                main()
+
+        self.assertEqual(
+            [record.getMessage() for record in captured.records],
+            [
+                "Producer shutdown requested",
+                "Flushing outstanding Kafka messages...",
+                "Kafka producer closed, 0 messages pending",
+                "Producer stopped",
+            ],
+        )
+
+    @patch("eve_producer.publisher.Producer")
+    def test_kafka_only_logs_discard_on_ctrl_c(self, producer_class):
+        """Describe discarded messages without claiming they were flushed."""
+        sample = Path(__file__).resolve().parents[1] / "examples" / "sample_event.json"
+        producer_class.return_value.produce.side_effect = KeyboardInterrupt()
+        with patch("sys.argv", ["eve-producer", "--kafka-only", "--event-file", str(sample)]):
+            with self.assertLogs("eve_producer", level="INFO") as captured:
+                main()
+
+        self.assertEqual(
+            [record.getMessage() for record in captured.records],
+            [
+                "Producer shutdown requested",
+                "Discarding 1 pending Kafka message after shutdown request...",
+                "Kafka producer closed, 0 messages pending",
+                "Producer stopped",
+            ],
+        )
 
 
 if __name__ == "__main__":

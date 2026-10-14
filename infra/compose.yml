@@ -1,0 +1,99 @@
+
+# Local development infrastructure for EVE Online Streamer.
+# Based on:
+# https://docs.redpanda.com/labs/docker-compose/single-broker/
+#
+# This is a single-broker development cluster without authentication or TLS.
+
+# Project name used to group Docker Compose resources.
+name: eve-online-streamer
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
+    container_name: eve-redpanda
+
+    command:
+      - redpanda
+      - start
+
+      # Kafka API: where the broker listens for producer/consumer connections.
+      # 9092 is accessible to other containers on the Docker network.
+      # 19092 is exposed to applications running on Windows.
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+
+      # Advertised addresses: what the broker tells Kafka clients to use
+      # after they connect and request cluster metadata.
+      # IMPORTANT: these must be reachable from the respective clients.
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+
+      # RPC: Remote Procedure Call.
+      # Used for internal communication between Redpanda brokers,
+      # including replication and cluster coordination.
+      - --rpc-addr
+      - redpanda:33145
+
+      # Address other brokers use to reach this broker's RPC interface.
+      - --advertise-rpc-addr
+      - redpanda:33145
+
+      # Development-friendly settings for container environments.
+      # Not intended for production deployment.
+      - --mode
+      - dev-container
+
+      # Redpanda uses Seastar, a high-performance C++ framework.
+      # Restrict Redpanda to one CPU core for local development.
+      - --smp
+      - "1"
+
+      # Controls the verbosity of Redpanda's logs.
+      - --default-log-level=info
+
+    ports:
+      # Host port 19092 -> container port 19092.
+      # Used by our Python producer running directly on Windows.
+      - "19092:19092"
+
+    volumes:
+      # Store broker data outside the container filesystem.
+      # Messages survive container recreation unless the volume is deleted.
+      - redpanda-data:/var/lib/redpanda/data
+
+  console:
+    # Web UI for inspecting topics, partitions, messages and consumer groups.
+    image: docker.redpanda.com/redpandadata/console:v3.12.0
+    container_name: eve-redpanda-console
+
+    ports:
+      # Redpanda Console web UI: http://localhost:8080
+      - "8080:8080"
+
+    environment:
+      # Location of Console's configuration file inside the container.
+      CONFIG_FILEPATH: /tmp/config.yml
+
+      # Supply the configuration as an environment variable.
+      # The entrypoint below writes it to /tmp/config.yml.
+      # Console connects to Redpanda through Docker's internal network.
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers:
+            - redpanda:9092
+
+    # Generate Console's configuration file before starting Console.
+    # $$ escapes Docker Compose variable substitution so that the
+    # shell inside the container expands $CONSOLE_CONFIG_FILE.
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+
+    # Start Redpanda before Console.
+    # Note: this does NOT guarantee Redpanda is fully ready.
+    depends_on:
+      - redpanda
+
+volumes:
+  # Docker-managed persistent storage for Redpanda.
+  redpanda-data:
