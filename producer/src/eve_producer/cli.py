@@ -30,7 +30,8 @@ def run(
     """
     if max_events is not None and max_events < 1:
         raise ValueError("max_events must be positive")
-    limiter = RateLimiter(settings.events_per_second if rate is None else rate)
+    effective_rate = settings.events_per_second if rate is None else rate
+    limiter = RateLimiter(effective_rate)
     client = MarketClient(
         settings.api_url, settings.page_size, settings.threshold,
         settings.request_timeout, settings.max_retries, settings.retry_backoff,
@@ -39,19 +40,25 @@ def run(
         publisher = MarketPublisher(settings.kafka_broker, settings.kafka_topic)
         try:
             published = 0
+            started_at = time.monotonic()
+            logger.info("Producer started: rate=%g, max_events=%s", effective_rate, max_events)
             while True:
                 for item, fetched_at in client.observations():
                     limiter.wait()
                     publisher.publish(MarketEvent.from_item(item, fetched_at))
                     published += 1
                     if max_events is not None and published >= max_events:
+                        logger.info("Published %d events in %.1f seconds", published, time.monotonic() - started_at)
+                        logger.info("Event limit reached; stopping")
                         return
                 if once:
+                    logger.info("Published %d events in %.1f seconds", published, time.monotonic() - started_at)
                     break
                 publisher.flush()
                 time.sleep(settings.poll_interval)
         finally:
-            logger.info("Producer shutdown requested")
+            if sys.exc_info()[0] is not None:
+                logger.info("Producer shutdown requested")
             if sys.exc_info()[0] is KeyboardInterrupt:
                 publisher.close(abort=True)
             else:
@@ -133,7 +140,7 @@ def main() -> None:
         parser.error("--kafka-only requires --event-file")
     if args.event_file is not None and not args.kafka_only:
         parser.error("--event-file requires --kafka-only")
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     try:
         settings = Settings()
         if args.api_only:

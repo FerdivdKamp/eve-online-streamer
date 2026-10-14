@@ -444,6 +444,28 @@ class ThrottleTests(unittest.TestCase):
     @patch("eve_producer.cli.MarketPublisher")
     @patch("eve_producer.cli.MarketClient")
     @patch("eve_producer.cli.RateLimiter")
+    @patch("eve_producer.cli.time.monotonic", side_effect=[0, 3.8])
+    def test_max_events_logs_run_summary(self, _clock, _limiter, client_class, _publisher):
+        """Report the effective rate, elapsed time, and event limit in order."""
+        item = MarketItem.model_validate(ITEM)
+        fetched_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        client_class.return_value.observations.return_value = iter([(item, fetched_at)] * 25)
+
+        with self.assertLogs("eve_producer.cli", level="INFO") as captured:
+            run(Settings(_env_file=None), once=True, rate=5, max_events=20)
+
+        self.assertEqual(
+            [record.getMessage() for record in captured.records],
+            [
+                "Producer started: rate=5, max_events=20",
+                "Published 20 events in 3.8 seconds",
+                "Event limit reached; stopping",
+            ],
+        )
+
+    @patch("eve_producer.cli.MarketPublisher")
+    @patch("eve_producer.cli.MarketClient")
+    @patch("eve_producer.cli.RateLimiter")
     @patch("eve_producer.models.datetime")
     def test_event_timestamp_is_assigned_after_each_wait(
         self, model_datetime, limiter_class, client_class, publisher_class
