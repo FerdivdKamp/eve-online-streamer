@@ -1,0 +1,17 @@
+{
+  "item_id": 34,
+  "item_name": "Tritanium",
+  "current_price": 4.5,
+  "avg_price": 5.0,
+  "price_change": -10.0,
+  "volume": 100,
+  "source_timestamp": "2026-01-01T00:00:00Z",
+  "location": {
+    "region_id": 10000002,
+    "region_name": "The Forge",
+    "station_id": 60003760,
+    "station_name": "Jita"
+  },
+  "fetched_at": "2026-01-01T00:00:01Z",
+  "event_timestamp": "2026-01-01T00:00:02Z"
+}

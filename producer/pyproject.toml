@@ -1,0 +1,26 @@
+[project]
+name = "producer"
+version = "0.1.0"
+description = "Simple tool that calls the endpoint and provides the output as streaming data."
+authors = [
+    {name = "Ferdi van de Kamp",email = "ferdivdkamp@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "confluent-kafka (>=2.16.0,<3.0.0)",
+    "pydantic (>=2.14.1,<3.0.0)",
+    "pydantic-settings (>=2.15.0,<3.0.0)",
+    "requests (>=2.34.2,<3.0.0)"
+]
+
+[project.scripts]
+eve-producer = "eve_producer.cli:main"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "eve_producer", from = "src" }]
