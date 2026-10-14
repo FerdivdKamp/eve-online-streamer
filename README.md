@@ -43,3 +43,11 @@ Pull the image, make sure Docker Desktop is running before performing the next s
 After it runs you can visit and chec its Swagger UI
 `http://localhost:8000/`
 
+
+
+
+## Documentation
+
+poetry -C docs run mkdocs serve -f ../mkdocs.yml --dev-addr 127.0.0.1:8001
+
+subsequently visit: http://127.0.0.1:8001/
