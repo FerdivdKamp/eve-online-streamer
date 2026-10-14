@@ -1,0 +1,5 @@
+.venv/
+.cache/
+.virtualenv-app-data/
+.ipynb_checkpoints/
+openapi_specification.pretty.json

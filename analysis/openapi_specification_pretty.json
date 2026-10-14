@@ -1,0 +1,676 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fake API Service",
+    "description": "Fake API for interview test tasks",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/photo/search": {
+      "get": {
+        "tags": [
+          "photo"
+        ],
+        "summary": "Get Photos",
+        "description": "Return a list of photos matching some criteria.",
+        "operationId": "get_photos_api_photo_search_get",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Geographic area (city, country, coordinates)",
+              "title": "Location"
+            },
+            "description": "Geographic area (city, country, coordinates)"
+          },
+          {
+            "name": "radius",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search radius in km",
+              "title": "Radius"
+            },
+            "description": "Search radius in km"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Number of top photos to return",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Number of top photos to return"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 10,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPhotoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/photo/info": {
+      "get": {
+        "tags": [
+          "photo"
+        ],
+        "summary": "Get Info",
+        "description": "Get photo information for a specific photo,\nReturns the photo information for a specific photo based on its unique identifier.",
+        "operationId": "get_info_api_photo_info_get",
+        "parameters": [
+          {
+            "name": "photo_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier for photo to extract photo",
+              "title": "Photo Id"
+            },
+            "description": "Unique identifier for photo to extract photo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetInfoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Get Market Data",
+        "description": "Get Online market data with price drop opportunities\n\nReturns market data for items where the price has dropped below a specified threshold\ncompared to the average price over the specified timeframe.",
+        "operationId": "get_market_data_api_market_get",
+        "parameters": [
+          {
+            "name": "region_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Online region ID",
+              "title": "Region Id"
+            },
+            "description": "Online region ID"
+          },
+          {
+            "name": "item_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Item type ID",
+              "title": "Item Id"
+            },
+            "description": "Item type ID"
+          },
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 90.0,
+              "minimum": 1.0,
+              "description": "Price drop threshold in percentage",
+              "default": 30.0,
+              "title": "Threshold"
+            },
+            "description": "Price drop threshold in percentage"
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "'daily', 'weekly', or 'monthly'",
+              "default": "weekly",
+              "title": "Timeframe"
+            },
+            "description": "'daily', 'weekly', or 'monthly'"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health Check",
+        "description": "Health check endpoint",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GetInfoResponse": {
+        "properties": {
+          "photo_id": {
+            "type": "string",
+            "title": "Photo Id",
+            "description": "Unique identifier for the photo"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Description of the photo"
+          },
+          "tags": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "List of tags associated with the photo, each containing id, author, and raw text"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Owner of the photo"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location",
+            "description": "Location of the photo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "photo_id",
+          "description",
+          "tags",
+          "owner",
+          "location"
+        ],
+        "title": "GetInfoResponse",
+        "description": "Response model for photo information endpoint"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MarketItem": {
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "title": "Item Id",
+            "description": "Item type ID"
+          },
+          "item_name": {
+            "type": "string",
+            "title": "Item Name",
+            "description": "Item name"
+          },
+          "current_price": {
+            "type": "number",
+            "title": "Current Price",
+            "description": "Current lowest sell price"
+          },
+          "avg_price": {
+            "type": "number",
+            "title": "Avg Price",
+            "description": "Average price over timeframe"
+          },
+          "price_change": {
+            "type": "number",
+            "title": "Price Change",
+            "description": "Percentage price change"
+          },
+          "volume": {
+            "type": "integer",
+            "title": "Volume",
+            "description": "Trading volume"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "Data timestamp"
+          },
+          "location": {
+            "$ref": "#/components/schemas/MarketLocation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "item_name",
+          "current_price",
+          "avg_price",
+          "price_change",
+          "volume",
+          "timestamp",
+          "location"
+        ],
+        "title": "MarketItem",
+        "description": "Individual market item data"
+      },
+      "MarketLocation": {
+        "properties": {
+          "region_id": {
+            "type": "integer",
+            "title": "Region Id",
+            "description": "Online region ID"
+          },
+          "region_name": {
+            "type": "string",
+            "title": "Region Name",
+            "description": "Region name"
+          },
+          "station_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Id",
+            "description": "Station ID if applicable"
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name",
+            "description": "Station name if applicable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "region_id",
+          "region_name"
+        ],
+        "title": "MarketLocation",
+        "description": "Location information for market data"
+      },
+      "MarketMeta": {
+        "properties": {
+          "region_id": {
+            "type": "integer",
+            "title": "Region Id",
+            "description": "Online region ID"
+          },
+          "region_name": {
+            "type": "string",
+            "title": "Region Name",
+            "description": "Region name"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold",
+            "description": "Price drop threshold percentage",
+            "default": 30.0
+          },
+          "timeframe": {
+            "type": "string",
+            "title": "Timeframe",
+            "description": "Time period for analysis",
+            "default": "weekly"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "Data timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "region_id",
+          "region_name",
+          "timestamp"
+        ],
+        "title": "MarketMeta",
+        "description": "Metadata for market data"
+      },
+      "MarketResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MarketItem"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MarketMeta"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta",
+          "pagination"
+        ],
+        "title": "MarketResponse",
+        "description": "Response model for market data endpoint"
+      },
+      "PaginationInfo": {
+        "properties": {
+          "current_page": {
+            "type": "integer",
+            "title": "Current Page",
+            "description": "Current page number",
+            "default": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page",
+            "description": "Items per page"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages",
+            "description": "Total number of pages"
+          },
+          "total_items": {
+            "type": "integer",
+            "title": "Total Items",
+            "description": "Total number of items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "per_page",
+          "total_pages",
+          "total_items"
+        ],
+        "title": "PaginationInfo",
+        "description": "Standard pagination response information"
+      },
+      "PhotoItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique identifier for the photo item"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Title of the photo item"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Owner of the photo item"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "owner"
+        ],
+        "title": "PhotoItem",
+        "description": "Individual photo data item"
+      },
+      "PhotoMeta": {
+        "properties": {
+          "location": {
+            "type": "string",
+            "title": "Location",
+            "description": "Geographic area"
+          },
+          "radius": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius",
+            "description": "Search radius in km"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "Data timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location",
+          "timestamp"
+        ],
+        "title": "PhotoMeta",
+        "description": "Metadata for photo analysis"
+      },
+      "SearchPhotoResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PhotoItem"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PhotoMeta"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "meta",
+          "pagination"
+        ],
+        "title": "SearchPhotoResponse",
+        "description": "Response model for photo analysis endpoint"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

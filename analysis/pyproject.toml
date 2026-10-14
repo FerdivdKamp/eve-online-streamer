@@ -1,0 +1,13 @@
+[project]
+name = "eve-market-analysis"
+version = "0.1.0"
+description = "Notebook workspace for exploring the mock market API"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "ipykernel>=7.4,<8.0",
+    "jupyterlab>=4.6,<5.0",
+    "requests>=2.34,<3.0",
+]
+
+[tool.poetry]
+package-mode = false
