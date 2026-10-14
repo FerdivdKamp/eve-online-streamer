@@ -1,2 +1,7 @@
 *.pdf
 *.ini
+!producer/src/eve_producer/config.ini
+.venv/
+*.pyc
+producer/.env
+producer/dist/
