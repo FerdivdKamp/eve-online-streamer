@@ -1,3 +1,5 @@
+"""Limit the rate of market event publication."""
+
 import time
 
 

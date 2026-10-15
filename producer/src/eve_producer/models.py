@@ -1,3 +1,5 @@
+"""Define market API responses and enriched Kafka events."""
+
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field

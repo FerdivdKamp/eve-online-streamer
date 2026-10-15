@@ -57,7 +57,7 @@ subsequently visit: http://127.0.0.1:8001/
 
 ## Continuous integration
 
-GitHub Actions runs Ruff on the producer and consumer Python code and each package's `unittest` suite on Python 3.13. The workflow runs on pushes and pull requests.
+GitHub Actions runs Ruff on the producer and consumer Python code and each package's `unittest` suite on Python 3.13. The workflow runs on pushes and pull requests. Ruff findings are advisory; unittest failures fail their jobs. To block merging into `master` when tests fail, require both `unittest (producer)` and `unittest (consumer)` in the repository's branch protection rule or ruleset. Leave `lint (advisory)` out of the required checks.
 
 To run the same checks locally from the repository root:
 
