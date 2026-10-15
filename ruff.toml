@@ -1,0 +1,13 @@
+target-version = "py313"
+
+[lint]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    # "D",  # Enable Google-style docstring checks after existing docstrings are updated.
+]
+
+# [lint.pydocstyle]
+# convention = "google"
