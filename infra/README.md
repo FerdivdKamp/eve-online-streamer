@@ -8,8 +8,10 @@ Contains everything needed to deploy and run the components
 Validate configuration
 `docker compose -f infra/compose.yml config`
 
-Start Redpanda and Console
+Start Redpanda, Console, and Flink
 `docker compose -f infra/compose.yml up -d`
+
+On the first run, build the pinned PyFlink image with `docker compose -f infra/compose.yml up -d --build`. The Flink Web UI is at http://localhost:8081. Follow `processor/README.md` for job submission, verification, and recovery.
 
 Check container status
 `docker compose -f infra/compose.yml ps`

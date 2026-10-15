@@ -1,0 +1,16 @@
+[project]
+name = "eve-processor"
+version = "0.1.0"
+description = "PyFlink market observation processor"
+requires-python = ">=3.12,<3.13"
+dependencies = ["apache-flink==2.2.1", "pydantic==2.10.6"]
+
+[project.scripts]
+eve-processor = "eve_processor.job:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "eve_processor", from = "src" }]

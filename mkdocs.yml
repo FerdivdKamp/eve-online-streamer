@@ -10,6 +10,7 @@ plugins:
         python:
           paths:
             - producer/src
+            - processor/src
           options:
             docstring_style: google
             show_source: true
@@ -17,5 +18,6 @@ plugins:
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - Stream processor: processor.md
   - API Reference:
       - Producer: api/producer.md

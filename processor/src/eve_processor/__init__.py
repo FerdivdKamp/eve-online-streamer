@@ -1,0 +1,1 @@
+"""Market observation stream processor."""

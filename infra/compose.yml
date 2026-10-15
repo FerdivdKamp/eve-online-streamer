@@ -94,6 +94,59 @@ services:
     depends_on:
       - redpanda
 
+  jobmanager:
+    # Coordinates the job graph, schedules tasks, and coordinates checkpoints.
+    build:
+      context: ..
+      dockerfile: processor/Dockerfile
+    image: eve-flink-processor:2.2.1
+    container_name: eve-flink-jobmanager
+    user: root  # Local volume must be writable for checkpoint and savepoint files.
+    command: jobmanager
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        parallelism.default: 3
+        execution.checkpointing.storage: filesystem
+        execution.checkpointing.dir: file:///opt/flink/state/checkpoints
+        execution.checkpointing.savepoint-dir: file:///opt/flink/state/savepoints
+        execution.checkpointing.num-retained: 3
+        python.executable: /opt/pyflink/bin/python
+        python.client.executable: /opt/pyflink/bin/python
+    volumes:
+      - flink-state:/opt/flink/state
+    depends_on:
+      - redpanda
+
+  taskmanager:
+    # Workers execute source, validation, and logging operators.
+    build:
+      context: ..
+      dockerfile: processor/Dockerfile
+    image: eve-flink-processor:2.2.1
+    container_name: eve-flink-taskmanager
+    user: root
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        # Three slots allow parallelism 3, so each Kafka partition can be read.
+        taskmanager.numberOfTaskSlots: 3
+        parallelism.default: 3
+        execution.checkpointing.storage: filesystem
+        execution.checkpointing.dir: file:///opt/flink/state/checkpoints
+        execution.checkpointing.savepoint-dir: file:///opt/flink/state/savepoints
+        python.executable: /opt/pyflink/bin/python
+        python.client.executable: /opt/pyflink/bin/python
+    volumes:
+      - flink-state:/opt/flink/state
+    depends_on:
+      - jobmanager
+
 volumes:
   # Docker-managed persistent storage for Redpanda.
   redpanda-data:
+  # Shared by JobManager and TaskManager on this single-host development setup.
+  flink-state:
