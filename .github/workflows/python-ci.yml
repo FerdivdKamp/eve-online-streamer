@@ -1,0 +1,36 @@
+name: Python CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install Ruff
+        run: python -m pip install ruff==0.17.0
+      - name: Lint Python packages
+        run: ruff check --output-format=github producer consumer
+
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [producer, consumer]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install Poetry
+        run: python -m pip install poetry==2.5.1
+      - name: Install package dependencies
+        run: poetry -C ${{ matrix.package }} install --no-interaction --no-ansi
+      - name: Run unit tests
+        run: poetry -C ${{ matrix.package }} run python -m unittest discover -s tests -v
