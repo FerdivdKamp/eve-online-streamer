@@ -54,3 +54,16 @@ See Infra for steps to get it running.
 poetry -C docs run mkdocs serve -f ../mkdocs.yml --dev-addr 127.0.0.1:8001
 
 subsequently visit: http://127.0.0.1:8001/
+
+## Continuous integration
+
+GitHub Actions runs Ruff on the producer and consumer Python code and each package's `unittest` suite on Python 3.13. The workflow runs on pushes and pull requests.
+
+To run the same checks locally from the repository root:
+
+```powershell
+python -m pip install ruff==0.17.0
+ruff check producer consumer
+poetry -C producer run python -m unittest discover -s tests -v
+poetry -C consumer run python -m unittest discover -s tests -v
+```
