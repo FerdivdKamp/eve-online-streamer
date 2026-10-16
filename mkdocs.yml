@@ -10,6 +10,7 @@ plugins:
         python:
           paths:
             - producer/src
+            - consumer/src
             - processor/src
           options:
             docstring_style: google
@@ -17,7 +18,10 @@ plugins:
 
 nav:
   - Home: index.md
+  - Quickstart: quickstart.md
   - Architecture: architecture.md
+  - Redpanda: redpanda.md
   - Stream processor: processor.md
-  - API Reference:
+  - Python Reference:
       - Producer: api/producer.md
+      - Consumer: api/consumer.md

@@ -44,6 +44,10 @@ After it runs you can visit and chec its Swagger UI
 `http://localhost:8000/`
 
 
+for Restart:
+docker run -d --name eve-mock-api --restart unless-stopped -p 8000:8000 ghcr.io/bigdatarepublic/bdr-task-api:v-0.0.3
+
+
 
 ## Redpanda
 
