@@ -1,3 +1,5 @@
+"""Fetch and validate paginated market observations from the API."""
+
 import time
 from datetime import datetime, timezone
 from collections.abc import Iterator

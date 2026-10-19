@@ -9,6 +9,36 @@
 name: eve-online-streamer
 
 services:
+  mock-api:
+    image: ghcr.io/bigdatarepublic/bdr-task-api:v-0.0.3
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  demo-scenarios:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    image: eve-demo-scenarios:1.0.0
+    ports:
+      - "127.0.0.1:8002:8000"
+    environment:
+      DEMO_BROKER: redpanda:9092
+      DEMO_INPUT_TOPIC: market-observations
+      DEMO_ALERT_TOPIC: market.alerts
+      DEMO_PROCESSOR_GROUP: eve-market-processor-v1
+      DEMO_DROP_THRESHOLD_PERCENT: ${PROCESSOR_DROP_THRESHOLD_PERCENT:-30}
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      jobmanager:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
     container_name: eve-redpanda
@@ -62,6 +92,19 @@ services:
       # Messages survive container recreation unless the volume is deleted.
       - redpanda-data:/var/lib/redpanda/data
 
+  topics:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
+    entrypoint: ["/bin/sh"]
+    command:
+      - -ec
+      - |
+        until rpk cluster info -X brokers=redpanda:9092 >/dev/null 2>&1; do sleep 2; done
+        rpk topic create market-observations -p 3 -r 1 --if-not-exists -X brokers=redpanda:9092
+        rpk topic create market.alerts -p 1 -r 1 --if-not-exists -X brokers=redpanda:9092
+    depends_on:
+      - redpanda
+    restart: "no"
+
   console:
     # Web UI for inspecting topics, partitions, messages and consumer groups.
     image: docker.redpanda.com/redpandadata/console:v3.12.0
@@ -94,6 +137,121 @@ services:
     depends_on:
       - redpanda
 
+  jobmanager:
+    # Coordinates the job graph, schedules tasks, and coordinates checkpoints.
+    build:
+      context: ..
+      dockerfile: processor/Dockerfile
+    image: eve-flink-processor:2.2.1
+    container_name: eve-flink-jobmanager
+    user: root  # Local volume must be writable for checkpoint and savepoint files.
+    command: jobmanager
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        parallelism.default: 3
+        execution.checkpointing.storage: filesystem
+        execution.checkpointing.dir: file:///opt/flink/state/checkpoints
+        execution.checkpointing.savepoint-dir: file:///opt/flink/state/savepoints
+        execution.checkpointing.num-retained: 3
+        python.executable: /opt/pyflink/bin/python
+        python.client.executable: /opt/pyflink/bin/python
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+    volumes:
+      - flink-state:/opt/flink/state
+    depends_on:
+      - redpanda
+
+  taskmanager:
+    # Workers execute source, validation, and logging operators.
+    build:
+      context: ..
+      dockerfile: processor/Dockerfile
+    image: eve-flink-processor:2.2.1
+    container_name: eve-flink-taskmanager
+    user: root
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        # Three slots allow parallelism 3, so each Kafka partition can be read.
+        taskmanager.numberOfTaskSlots: 3
+        parallelism.default: 3
+        execution.checkpointing.storage: filesystem
+        execution.checkpointing.dir: file:///opt/flink/state/checkpoints
+        execution.checkpointing.savepoint-dir: file:///opt/flink/state/savepoints
+        python.executable: /opt/pyflink/bin/python
+        python.client.executable: /opt/pyflink/bin/python
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
+    volumes:
+      - flink-state:/opt/flink/state
+    depends_on:
+      - jobmanager
+
+  job-submit:
+    image: eve-flink-processor:2.2.1
+    build:
+      context: ..
+      dockerfile: processor/Dockerfile
+    command: ["python", "/opt/processor/tools/submit_job.py"]
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        rest.address: jobmanager
+      PROCESSOR_DROP_THRESHOLD_PERCENT: ${PROCESSOR_DROP_THRESHOLD_PERCENT:-30}
+      PROCESSOR_KEY_DIMENSIONS: ${PROCESSOR_KEY_DIMENSIONS:-}
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      taskmanager:
+        condition: service_started
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.13.0
+    ports:
+      - "127.0.0.1:9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
 volumes:
   # Docker-managed persistent storage for Redpanda.
   redpanda-data:
+  # Shared by JobManager and TaskManager on this single-host development setup.
+  flink-state:
+  prometheus-data:
+  grafana-data:

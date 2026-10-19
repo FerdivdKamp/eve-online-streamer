@@ -1,3 +1,5 @@
+"""Unit tests for the market producer and its command-line modes."""
+
 import json
 import unittest
 from copy import deepcopy
@@ -71,6 +73,8 @@ class ConfigTests(unittest.TestCase):
 
 
 class ApiTests(unittest.TestCase):
+    """Check API pagination, retries, and response validation."""
+
     def client(self, session, max_retries=2):
         """Build a market client with a mocked HTTP session."""
         return MarketClient("http://api/api/market", 1, 90, 5, max_retries, 0.5, session)
@@ -165,6 +169,8 @@ class ApiTests(unittest.TestCase):
 
 
 class EventTests(unittest.TestCase):
+    """Check market event enrichment and serialization."""
+
     def test_enrichment_preserves_source_data_and_serializes(self):
         """Keep source fields and serialize UTC enrichment timestamps."""
         fetched_at = datetime(2026, 1, 2, tzinfo=timezone.utc)
@@ -209,6 +215,8 @@ class ProducerPipelineTests(unittest.TestCase):
 
 
 class PublishingTests(unittest.TestCase):
+    """Check Kafka publication and delivery handling."""
+
     def test_key_json_and_delivery_failure(self):
         """Use the region and item key and report callback failures."""
         producer = Mock()
@@ -396,6 +404,8 @@ class LifecycleTests(unittest.TestCase):
 
 
 class ThrottleTests(unittest.TestCase):
+    """Check per-event rate limiting and CLI overrides."""
+
     @patch("eve_producer.throttle.time.sleep")
     @patch("eve_producer.throttle.time.monotonic", side_effect=[0, 0.1, 0.5])
     def test_rate_waits_between_events(self, _clock, sleep):

@@ -1,3 +1,5 @@
+"""Run the market producer from the command line."""
+
 import argparse
 import logging
 import sys

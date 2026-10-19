@@ -6,8 +6,8 @@ select = [
     "E7",
     "E9",
     "F",
-    # "D",  # Enable Google-style docstring checks after existing docstrings are updated.
+    "D",
 ]
 
-# [lint.pydocstyle]
-# convention = "google"
+[lint.pydocstyle]
+convention = "google"

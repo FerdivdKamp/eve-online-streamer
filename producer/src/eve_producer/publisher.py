@@ -1,3 +1,5 @@
+"""Publish enriched market events to Kafka."""
+
 import logging
 
 from confluent_kafka import Producer
