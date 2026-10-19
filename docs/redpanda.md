@@ -16,15 +16,16 @@ Open [Redpanda Console](http://localhost:8080/overview) to inspect the broker. T
 
 ## Create and inspect the topic
 
-The project uses `market-observations` with three partitions and replication factor one. Create it once, then list or describe it to confirm:
+The project uses `market-observations` for input and `market.alerts` for price-drop alerts. The input topic has three partitions so Flink can read it in parallel. Alerts are infrequent here, so the alert topic needs only one partition. Both topics have replication factor one because this local setup has one broker. Create them once, then list or describe them to confirm:
 
 ```powershell
 docker exec eve-redpanda rpk topic create market-observations -p 3 -r 1
+docker exec eve-redpanda rpk topic create market.alerts -p 1 -r 1
 docker exec eve-redpanda rpk topic list
 docker exec eve-redpanda rpk topic describe market-observations
 ```
 
-If the topic already exists, skip the create command. Broker data is stored in the Docker volume `redpanda-data`, so it survives container recreation while that volume is retained.
+If a topic already exists, skip its create command. The existing `market.alerts` topic may have three partitions from the earlier setup; it works as is. Redpanda cannot reduce a topic's partition count in place. Broker data is stored in the Docker volume `redpanda-data`, so it survives container recreation while that volume is retained.
 
 ## Connection addresses
 
@@ -57,3 +58,9 @@ poetry run eve-consumer --group docs-check --from-beginning --max-messages 1 --v
 ```
 
 `--from-beginning` only applies to a group without committed offsets. Choose another group name for a later replay. See `consumer/README.md` for its offset and commit behavior.
+
+After the processor has enough history and sees a qualifying drop, inspect its output in Console or run:
+
+```powershell
+docker exec eve-redpanda rpk topic consume market.alerts -n 1 -o start
+```

@@ -31,21 +31,14 @@ Could have
 
 
 ### Setting up
-`$env:CR_PAT = "<YOUR_PERSONAL_ACCESS_TOKEN>"`
-`$env:CR_PAT | docker login ghcr.io -u FerdivdKamp --password-stdin`
+Start Docker Desktop, then run `docker compose -f infra/compose.yml up -d --build` from the repository root. This starts the mock API, demo scenario service, Redpanda, Flink processor, Prometheus, and Grafana. See the [quickstart](docs/quickstart.md) for the producer and demo steps. The mock API's Swagger UI is at <http://localhost:8000/>; the scenario controls are at <http://localhost:8002/docs>.
 
-Pull the image, make sure Docker Desktop is running before performing the next step
-`docker pull ghcr.io/bigdatarepublic/bdr-task-api:v-0.0.3`
+If Docker cannot pull the mock API image from GitHub Container Registry, authenticate first:
 
-`docker run -p 8000:8000 --rm -it ghcr.io/bigdatarepublic/bdr-task-api:v-0.0.3`
-
-
-After it runs you can visit and chec its Swagger UI
-`http://localhost:8000/`
-
-
-for Restart:
-docker run -d --name eve-mock-api --restart unless-stopped -p 8000:8000 ghcr.io/bigdatarepublic/bdr-task-api:v-0.0.3
+```powershell
+$env:CR_PAT = "<YOUR_PERSONAL_ACCESS_TOKEN>"
+$env:CR_PAT | docker login ghcr.io -u FerdivdKamp --password-stdin
+```
 
 
 

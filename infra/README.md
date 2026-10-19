@@ -8,10 +8,10 @@ Contains everything needed to deploy and run the components
 Validate configuration
 `docker compose -f infra/compose.yml config`
 
-Start Redpanda, Console, and Flink
+Start the mock API, Redpanda, Console, Flink, Prometheus, and Grafana
 `docker compose -f infra/compose.yml up -d`
 
-On the first run, build the pinned PyFlink image with `docker compose -f infra/compose.yml up -d --build`. The Flink Web UI is at http://localhost:8081. Follow `processor/README.md` for job submission, verification, and recovery.
+On the first run, build the pinned PyFlink image with `docker compose -f infra/compose.yml up -d --build`. Compose creates the topics and submits the Flink processor once it is ready. The Flink Web UI is at http://localhost:8081 and Grafana is at http://localhost:3000. Follow `processor/README.md` for verification and recovery.
 
 Check container status
 `docker compose -f infra/compose.yml ps`
@@ -19,8 +19,14 @@ Check container status
 Check whether you see the console
 http://localhost:8080/overview
 
-Creating a test topic
+Manual topic creation, only when running without the `topics` service:
 docker exec eve-redpanda rpk topic create market-observations -p 3 -r 1
+
+Create the alert topic before submitting the V2 processor job:
+`docker exec eve-redpanda rpk topic create market.alerts -p 1 -r 1`
+
+Skip either create command if the topic already exists. Inspect alerts with:
+`docker exec eve-redpanda rpk topic consume market.alerts -n 1 -o start`
 
 Test message:
 '{"item_id":34,"item_name":"Tritanium","current_price":6.97}' |

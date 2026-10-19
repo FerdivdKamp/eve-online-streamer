@@ -1,0 +1,97 @@
+{
+  "uid": "eve-pipeline-overview",
+  "title": "EVE Streaming Pipeline Overview",
+  "tags": ["eve", "streaming"],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1, "title": "Redpanda broker", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "up{job=\"redpanda\"}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "Down", "color": "red"}, "1": {"text": "Up", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red"}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 2, "title": "Flink processes", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "up{job=~\"flink-jobmanager|flink-taskmanager\"}", "legendFormat": "{{job}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "Down", "color": "red"}, "1": {"text": "Up", "color": "green"}}}]}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "orientation": "horizontal"}
+    },
+    {
+      "id": 3, "title": "Processor consumer lag (records)", "type": "timeseries", "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (redpanda_group) (clamp_min(redpanda_kafka_max_offset{redpanda_topic=\"market-observations\"} - on (redpanda_topic, redpanda_partition) group_right (redpanda_group) redpanda_kafka_consumer_group_committed_offset{redpanda_topic=\"market-observations\",redpanda_group=\"eve-market-processor-v1\"}, 0))", "legendFormat": "{{redpanda_group}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "id": 4, "title": "Alerts in topic (high watermark)", "type": "stat", "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(redpanda_kafka_max_offset{redpanda_topic=\"market.alerts\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 5, "title": "Redpanda topic throughput", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (redpanda_topic, redpanda_request) (rate(redpanda_kafka_request_bytes_total{redpanda_topic=~\"market-observations|market.alerts\"}[1m]))", "legendFormat": "{{redpanda_topic}} {{redpanda_request}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []}
+    },
+    {
+      "id": 6, "title": "Flink records per second", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "sum(flink_taskmanager_job_task_operator_numRecordsInPerSecond{operator_name=\"KEYED_PROCESS\"})", "legendFormat": "processed", "refId": "A"},
+        {"expr": "sum(flink_taskmanager_job_task_numRecordsOutPerSecond)", "legendFormat": "emitted", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []}
+    },
+    {
+      "id": 7, "title": "Flink busy time", "type": "timeseries", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "avg(flink_taskmanager_job_task_busyTimeMsPerSecond)", "legendFormat": "average busy ms/s", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []}
+    },
+    {
+      "id": 8, "title": "Completed checkpoints", "type": "timeseries", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "max(flink_jobmanager_job_numberOfCompletedCheckpoints)", "legendFormat": "completed", "refId": "A"}, {"expr": "max(flink_jobmanager_job_numberOfFailedCheckpoints)", "legendFormat": "failed", "refId": "B"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "id": 9, "title": "Redpanda data disk free", "type": "timeseries", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "redpanda_storage_disk_free_bytes", "legendFormat": "free", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}
+    },
+    {
+      "id": 10, "title": "Live observations within 5s (last 5m)", "type": "stat", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 21},
+      "description": "Producer event timestamp to completed Flink evaluation. Marked backfills/replays and future-clock errors are excluded; stale live events are included as failures. No Data means no live observations in the window.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "100 * sum(increase(flink_taskmanager_job_task_operator_observation_within_5s_total[5m]) and on(job_id) flink_taskmanager_job_task_operator_observation_live_processed_total) / sum(increase(flink_taskmanager_job_task_operator_observation_live_processed_total[5m]) and on(job_id) flink_taskmanager_job_task_operator_observation_live_processed_total)", "refId": "A", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "red"}, {"color": "green", "value": 95}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 11, "title": "p95 evaluation latency (last 5m)", "type": "stat", "gridPos": {"h": 6, "w": 8, "x": 8, "y": 21},
+      "description": "Estimated from explicit cumulative latency counters across all Flink subtasks. Includes stale live events; excludes marked backfills/replays and future-clock errors.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (label_replace(label_replace(increase(flink_taskmanager_job_task_operator_le_observation_latency_seconds_bucket[5m]) and on(job_id) flink_taskmanager_job_task_operator_observation_live_processed_total, \"le\", \"+Inf\", \"le\", \"_Inf\"), \"le\", \"$1.$2\", \"le\", \"([0-9]+)_([0-9]+)\")))", "refId": "A", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "red", "value": 5}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 12, "title": "Live observations processed (last 5m)", "type": "stat", "gridPos": {"h": 6, "w": 8, "x": 16, "y": 21},
+      "description": "Prometheus estimate from counter increase; short bursts near job startup may be undercounted, and extrapolation may inflate a window. Includes stale and duplicate live events. Marked backfills/replays and future-clock errors are counted separately.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(increase(flink_taskmanager_job_task_operator_observation_live_processed_total[5m]) and on(job_id) flink_taskmanager_job_task_operator_observation_live_processed_total)", "refId": "A", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    }
+  ]
+}

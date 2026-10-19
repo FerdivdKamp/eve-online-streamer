@@ -4,7 +4,7 @@ Polls the mock EVE market API and publishes one JSON message per observation to 
 
 ## Run locally
 
-Start the mock API on port 8000 and Redpanda on port 9092, then from `producer/`:
+Start the Compose stack, which exposes the mock API on port 8000 and Redpanda on host port 19092, then from `producer/`:
 
 ```powershell
 poetry install

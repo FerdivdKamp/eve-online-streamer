@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: EVE pipeline
+    orgId: 1
+    folder: EVE pipeline
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

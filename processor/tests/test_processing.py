@@ -1,9 +1,11 @@
 """Unit coverage for observation parsing without a Flink runtime."""
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -65,10 +67,29 @@ class ProcessingTests(unittest.TestCase):
             {"start_from": "middle"},
             {"parallelism": 0},
             {"checkpoint_interval_ms": 0},
+            {"python_bundle_time_ms": 0},
             {"topic": " "},
+            {"alert_topic": "market-observations"},
+            {"window_hours": 0},
+            {"drop_threshold_percent": 100},
+            {"key_dimensions": ("unknown",)},
+            {"key_dimensions": ("station_id", "station_id")},
+            {"min_observations": 0},
         ):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 ProcessorConfig(**values)
+
+    def test_default_and_environment_alert_settings(self) -> None:
+        """Expose the default policy and explicit optional key dimensions."""
+        self.assertEqual(ProcessorConfig().drop_threshold_percent, 30.0)
+        self.assertEqual(ProcessorConfig().key_dimensions, ())
+        with patch.dict(os.environ, {
+            "PROCESSOR_DROP_THRESHOLD_PERCENT": "35",
+            "PROCESSOR_KEY_DIMENSIONS": "station_id, market_side",
+        }):
+            config = ProcessorConfig.from_env()
+        self.assertEqual(config.drop_threshold_percent, 35.0)
+        self.assertEqual(config.key_dimensions, ("station_id", "market_side"))
 
 
 if __name__ == "__main__":

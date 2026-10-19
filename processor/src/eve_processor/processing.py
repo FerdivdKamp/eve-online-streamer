@@ -15,6 +15,7 @@ class ParsedRecord:
 
     observation: MarketObservation | None
     error: str | None
+    invalid_timestamp: bool = False
 
 
 def parse_observation(raw: str) -> ParsedRecord:
@@ -35,11 +36,17 @@ def parse_observation(raw: str) -> ParsedRecord:
     try:
         return ParsedRecord(MarketObservation.model_validate(data), None)
     except ValidationError as exc:
+        invalid_timestamp = any(
+            issue["type"] != "missing"
+            and issue["loc"]
+            and issue["loc"][0] in {"event_timestamp", "fetched_at", "source_timestamp"}
+            for issue in exc.errors()
+        )
         details = "; ".join(
             f"{'.'.join(map(str, issue['loc']))}: {issue['msg']}"
             for issue in exc.errors()
         )
-        return ParsedRecord(None, details[:1000])
+        return ParsedRecord(None, details[:1000], invalid_timestamp)
 
 
 def market_key(observation: MarketObservation) -> tuple[int, int]:
@@ -53,5 +60,6 @@ def classify(raw: str) -> tuple[str, str]:
     if result.observation is None:
         fingerprint = sha256(raw.encode("utf-8", errors="replace")).hexdigest()[:12]
         preview = raw[:120].replace("\n", " ").replace("\r", " ")
-        return "invalid", f"sha256={fingerprint} reason={result.error} preview={preview!r}"
+        kind = "invalid_timestamp" if result.invalid_timestamp else "invalid"
+        return kind, f"sha256={fingerprint} reason={result.error} preview={preview!r}"
     return "valid", result.observation.model_dump_json()

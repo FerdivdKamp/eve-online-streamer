@@ -1,37 +1,51 @@
 # Stream processor
 
-The repository's `processor/README.md` has the full PowerShell runbook. From the repository root, start and submit with:
+The PyFlink job reads validated observations from Redpanda, computes a rolling market price baseline in Flink managed keyed state, and writes qualifying drops to `market.alerts`. See the repository's `processor/README.md` for the full runbook, configuration table, and steps to replace a running V1 job.
+
+## Run and inspect
+
+From the repository root in PowerShell, build and start the services. Compose creates missing topics and submits the V2 job after Flink is ready. If V1 is currently running, stop it with a savepoint first as described in `processor/README.md`; its savepoint cannot initialize the V2 rolling state.
 
 ```powershell
 docker compose -f infra/compose.yml up -d --build
-docker exec eve-redpanda rpk topic create market-observations -p 3 -r 1
-docker compose -f infra/compose.yml exec jobmanager flink run -d -py /opt/processor/run_job.py
-docker compose -f infra/compose.yml logs -f taskmanager
 ```
 
-Create the topic only if it does not exist. Open <http://localhost:8081> to inspect the running job and completed checkpoints. Publish `producer/examples/sample_event.json` with the producer's `--kafka-only` mode to test without the mock API. Use `flink stop --savepointPath file:///opt/flink/state/savepoints <JOB_ID>` to stop the job with restorable state.
+Check that the job is running:
 
-## Architecture
+```powershell
+docker compose -f infra/compose.yml exec jobmanager flink list
+```
 
-The **JobManager** schedules the job, coordinates checkpoints, and serves the Web UI. The **TaskManager** executes source and Python operators. A task slot is a unit of TaskManager scheduling capacity. This local setup provides three slots and sets parallelism to three, allowing one Kafka source reader per partition of `market-observations`. Redpanda is reached at `redpanda:9092` within the Compose network.
+Open the [Flink Web UI](http://localhost:8081/) for the job graph and checkpoints. TaskManager logs contain `VALID`, `INVALID`, and skipped-record diagnostics. [Redpanda Console](http://localhost:8080/) shows the input and alert topics. Use `docker exec eve-redpanda rpk topic consume market.alerts -o end -n 1` in a separate terminal to wait for the next alert. The [Quickstart](quickstart.md) covers the full pipeline.
 
-### Reading the job graph
+## Rolling baseline and alert rule
 
-A **record** is one market observation. A **task** is a running instance of part of the pipeline; it keeps processing records until the job stops. **Parallelism 3** means Flink runs three instances of each parallel stage. Flink chains adjacent operators into a single task when it can, so the Web UI shows two stages with three tasks each:
+The default market key is region ID and item ID. `PROCESSOR_KEY_DIMENSIONS` can opt in to station ID, market side, or order type as additional key fields. Flink redistributes the stream by this key. Each active key has an hourly sum and count for the current UTC hour and the preceding 168 hours. The rolling average weights each observation equally. The incoming price is checked against the prior average **before** entering its hour bucket. The default alert threshold is a drop of at least 30%, with at least ten prior observations. Set `PROCESSOR_DROP_THRESHOLD_PERCENT` in the Compose environment to change it. An alert contains a stable ID, source and market identifiers, both prices, percentage deviation, event and processing times, the window definition, and the prior observation count.
 
-| Stage in the Web UI | Tasks | Purpose |
-| --- | ---: | --- |
-| Source, validation, and invalid-record output | 3 | Read the three Kafka partitions and classify each record. |
-| Keyed valid-record output | 3 | Log valid records after `key_by` redistributes them. |
+Hourly buckets bound the price history to 169 entries per active key. They make expiry accurate to the hour: an observation at the oldest boundary can stay in the baseline for up to 59 minutes beyond an exact seven-day cutoff. Alert payloads distinguish the exact window start from the earliest retained bucket. The duplicate-ID cache is separately capped per key. Flink state TTL removes inactive keys after the window length plus one day of processing-time inactivity.
 
-That is why the job shows **6 running tasks**. The `key_by` boundary sends observations for the same `(region_id, item_id)` to the same downstream task. A task slot is scheduling capacity, not a record or a Kafka partition. Flink can share a slot between tasks from the same job, so six running tasks fit in the three configured slots.
+## Event time, late records, and replay
 
-The PyFlink **DataStream API** exposes source, validation, `key_by`, and later stateful operators directly. Table API and SQL would be good for declarative transformations, but DataStream makes the intended per-item state and invalid-record branch clear. PyFlink keeps the code consistent with the producer and consumer. Python operator overhead is accepted for V1; profile it before considering SQL or JVM operators. The eventual end-to-end alert target is under five seconds.
+The producer sets `event_timestamp` when it publishes an observation. This is the rolling-window clock. API `source_timestamp` can be out of order and is kept only for provenance. The processor compares event time with processing time to reject old or future-dated live records. It also tracks the latest event time per key. An out-of-order event within the configured lateness limit updates the baseline but does not generate a retroactive alert; an older one is discarded. This is an arrival-time policy without Flink watermark buffering. The job does not revise an earlier alert after a late arrival.
 
-The KafkaSource reads all partitions, validates JSON, and routes malformed records to diagnostic output. The existing incomplete manual Tritanium message is reported as invalid. Valid records are keyed by `(region_id, item_id)`, matching the producer's Kafka key, then logged. API `avg_price` and `price_change` are retained in the contract but will not form the future anomaly baseline.
+An optional `source_event_id` identifies a record across retries. Without one, a hash of the validated event serves as its ID. Exact duplicates found in the bounded cache are skipped. Historical records marked `ingestion.mode=backfill` are skipped by the live job, so they cannot change its rolling state or emit live alerts. Rebuild historical state in an isolated job and keep live alert output disabled. Old Kafka data is also subject to the live-event age limit, so restarting with an empty state does not silently treat stale replay as today's market.
 
-## Time, state, and replay
+## Recovery and delivery
 
-Event time is the time encoded in an observation; processing time is when Flink executes an operator. `event_timestamp` is the intended event-time reference. API `source_timestamp` is unreliable for history. V1 has no windows and emits no watermarks. Future event-time windows need a measured out-of-order tolerance, a policy for late events, and idle-partition handling.
+Flink checkpoints include keyed state and Kafka source positions; the local Compose setup stores them in the persistent `flink-state` volume. A running job can recover from a TaskManager failure using a completed checkpoint. For a planned stop, use `flink stop --savepointPath file:///opt/flink/state/savepoints <JOB_ID>`, then restore with `flink run -d -s <SAVEPOINT_PATH> -py /opt/processor/run_job.py`. A whole-stack restart automatically submits a fresh job using committed Kafka offsets; it does not restore rolling state. For exact state continuity, start only `jobmanager` and `taskmanager`, restore from a compatible V2 savepoint, then run the remaining Compose services. V1 savepoints are not compatible with the new topology.
 
-Checkpoints periodically capture Flink state and Kafka source positions for automatic recovery. Savepoints are explicit retained snapshots for planned stop and restore. Kafka group offsets are only a starting option for a new job with no restored Flink state. Replay starts a fresh job at chosen Kafka offsets and rebuilds state from retained messages. Restored checkpoint or savepoint offsets take precedence over the configured starting policy. History outside Kafka retention needs an archived raw-event dataset; the mock API cannot backfill missing history. Future replay alerts should go to an isolated topic, and state reconstruction can run without live notifications.
+The Kafka alert sink uses **at-least-once** delivery. Recovery around a checkpoint may publish the same alert again; its deterministic `alert_id` lets downstream consumers deduplicate. Fresh jobs without restored state use the configured Kafka group offset policy (`committed` by default, falling back to earliest). A Kafka offset alone does not restore a rolling baseline.
+
+## Deploy an update
+
+Stop the running job with a savepoint **before** replacing the Flink containers. For a compatible V2 code change, restore from the reported savepoint path:
+
+```powershell
+docker compose -f infra/compose.yml exec jobmanager flink list
+docker compose -f infra/compose.yml exec jobmanager flink stop --savepointPath file:///opt/flink/state/savepoints <V2_JOB_ID>
+docker compose -f infra/compose.yml up -d --no-deps --build --force-recreate jobmanager taskmanager
+docker compose -f infra/compose.yml exec jobmanager flink run -d -s <V2_SAVEPOINT_PATH> -py /opt/processor/run_job.py
+docker compose -f infra/compose.yml exec jobmanager flink list
+```
+
+The V1-to-V2 upgrade uses the same stop and rebuild steps, but submits V2 **without** `-s`: the V1 savepoint cannot initialize its new rolling state. Keep the V1 savepoint for rollback. Redpanda does not need a rebuild for a processor update. To change an existing three-partition `market.alerts` topic to one partition in a POC, delete and recreate only that topic; this discards its alerts but keeps `market-observations` and the broker volume. The full command sequence is in `processor/README.md`.

@@ -22,6 +22,9 @@ nav:
   - Architecture: architecture.md
   - Redpanda: redpanda.md
   - Stream processor: processor.md
+  - Monitoring: monitoring.md
+  - Demo scenarios: demo.md
   - Python Reference:
       - Producer: api/producer.md
       - Consumer: api/consumer.md
+      - Processor: api/processor.md
