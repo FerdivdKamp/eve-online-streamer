@@ -8,7 +8,7 @@ The Swagger page exposes:
 - `POST /scenarios/load`: publishes stable-price observations across a chosen number of market keys at a chosen rate. Defaults are 5,000 events, 200 events per second, and 100 keys. The run passes when Flink commits all published input offsets. Use Grafana for throughput, lag, and checkpoint behavior during this run.
 - `GET /runs/{run_id}`: returns `queued`, `running`, `passed`, or `failed`, plus progress and the final result. Only one scenario runs at a time; run results are kept in memory and disappear if the service restarts.
 
-The alert scenario uses the processor's default 30% drop threshold and ten-observation minimum. It tests the threshold at exactly 70 against a 100 baseline. Set `PROCESSOR_DROP_THRESHOLD_PERCENT` in the Compose environment to change both the processor and the demo. If you change the Kafka group, update `DEMO_PROCESSOR_GROUP` in Compose. Both scenarios use fresh live event timestamps and synthetic item IDs to avoid old market state. A failed or timed-out run reports failure rather than claiming an alert was verified.
+The alert scenario uses the local Compose processor's 30% drop threshold and three-observation minimum. It tests the threshold at exactly 70 against a 100 baseline. Set `PROCESSOR_DROP_THRESHOLD_PERCENT` in the Compose environment to change both the processor and the demo. If you change the Kafka group, update `DEMO_PROCESSOR_GROUP` in Compose. Both scenarios use fresh live event timestamps and synthetic item IDs to avoid old market state. A failed or timed-out run reports failure rather than claiming an alert was verified.
 
 Example from PowerShell:
 

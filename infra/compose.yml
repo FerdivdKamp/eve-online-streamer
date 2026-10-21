@@ -99,8 +99,10 @@ services:
       - -ec
       - |
         until rpk cluster info -X brokers=redpanda:9092 >/dev/null 2>&1; do sleep 2; done
-        rpk topic create market-observations -p 3 -r 1 --if-not-exists -X brokers=redpanda:9092
-        rpk topic create market.alerts -p 1 -r 1 --if-not-exists -X brokers=redpanda:9092
+        rpk topic create market-observations -p 3 -r 1 --if-not-exists -c retention.bytes=134217728 -c retention.ms=86400000 -c segment.bytes=16777216 -X brokers=redpanda:9092
+        rpk topic create market.alerts -p 1 -r 1 --if-not-exists -c retention.bytes=33554432 -c retention.ms=86400000 -c segment.bytes=16777216 -X brokers=redpanda:9092
+        rpk topic alter-config market-observations --set retention.bytes=134217728 --set retention.ms=86400000 --set segment.bytes=16777216 --no-confirm -X brokers=redpanda:9092
+        rpk topic alter-config market.alerts --set retention.bytes=33554432 --set retention.ms=86400000 --set segment.bytes=16777216 --no-confirm -X brokers=redpanda:9092
     depends_on:
       - redpanda
     restart: "no"
@@ -149,6 +151,7 @@ services:
     ports:
       - "127.0.0.1:8081:8081"
     environment:
+      PROCESSOR_MIN_OBSERVATIONS: ${PROCESSOR_MIN_OBSERVATIONS:-3}
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
         parallelism.default: 3
@@ -203,6 +206,7 @@ services:
         jobmanager.rpc.address: jobmanager
         rest.address: jobmanager
       PROCESSOR_DROP_THRESHOLD_PERCENT: ${PROCESSOR_DROP_THRESHOLD_PERCENT:-30}
+      PROCESSOR_MIN_OBSERVATIONS: ${PROCESSOR_MIN_OBSERVATIONS:-3}
       PROCESSOR_KEY_DIMENSIONS: ${PROCESSOR_KEY_DIMENSIONS:-}
     depends_on:
       topics:

@@ -32,13 +32,13 @@ To inspect alerts:
 docker exec eve-redpanda rpk topic consume market.alerts -n 1 -o start
 ```
 
-The default baseline requires ten prior observations for the same region and item, and an alert requires the new price to be at least 30% below their average. A single sample event does not trigger one. For a repeatable integration check with a fresh item ID, run:
+The local Compose baseline requires three prior observations for the same region and item, and an alert requires the new price to be at least 30% below their average. A single sample event does not trigger one. For a repeatable integration check with a fresh item ID, run:
 
 ```powershell
 .\processor\tools\send_alert_example.ps1
 ```
 
-The script sends ten 100 ISK observations followed by a 70 ISK observation at the default threshold. Its final line prints the item ID to look for in Redpanda Console. Set `PROCESSOR_DROP_THRESHOLD_PERCENT` in the invoking shell if the running processor uses another threshold. To watch the next alert on the command line, run `docker exec eve-redpanda rpk topic consume market.alerts -o end -n 1` in another terminal **before** running the script. The processor's pure calculation tests cover the same sequence without Kafka.
+The script sends three 100 ISK observations followed by a 70 ISK observation at the default threshold. Its final line prints the item ID to look for in Redpanda Console. Set `PROCESSOR_DROP_THRESHOLD_PERCENT` in the invoking shell if the running processor uses another threshold. To watch the next alert on the command line, run `docker exec eve-redpanda rpk topic consume market.alerts -o end -n 1` in another terminal **before** running the script. The processor's pure calculation tests cover the same sequence without Kafka.
 
 ### Upgrading a running V1 job
 
@@ -120,7 +120,7 @@ Set these environment variables on the `docker compose exec` command that submit
 | `PROCESSOR_WINDOW_HOURS` | `168` | Number of hourly buckets. |
 | `PROCESSOR_DROP_THRESHOLD_PERCENT` | `30` | Minimum drop from prior average; set in the Compose environment to change the processor and demo together. |
 | `PROCESSOR_KEY_DIMENSIONS` | empty | Optional comma-separated extra baseline keys: `station_id`, `market_side`, `order_type`. |
-| `PROCESSOR_MIN_OBSERVATIONS` | `10` | Prior observations required for an alert. |
+| `PROCESSOR_MIN_OBSERVATIONS` | `3` in Compose (`10` in the processor package) | Prior observations required for an alert. Changing it requires a job restart; use a savepoint to keep the baseline. |
 | `PROCESSOR_ALLOWED_LATENESS_SECONDS` | `600` | Accepted out-of-order delay per key. |
 | `PROCESSOR_MAX_EVENT_AGE_SECONDS` | `900` | Maximum live-event age at processing. |
 | `PROCESSOR_MAX_FUTURE_SKEW_SECONDS` | `60` | Maximum future event-time offset. |

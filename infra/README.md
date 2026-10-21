@@ -11,7 +11,7 @@ Validate configuration
 Start the mock API, Redpanda, Console, Flink, Prometheus, and Grafana
 `docker compose -f infra/compose.yml up -d`
 
-On the first run, build the pinned PyFlink image with `docker compose -f infra/compose.yml up -d --build`. Compose creates the topics and submits the Flink processor once it is ready. The Flink Web UI is at http://localhost:8081 and Grafana is at http://localhost:3000. Follow `processor/README.md` for verification and recovery.
+On the first run, build the pinned PyFlink image with `docker compose -f infra/compose.yml up -d --build`. Compose creates the topics and submits the Flink processor once it is ready. The local demo requires three prior observations per market key. It sets one-day and per-partition size retention limits on the two market topics; this bounds retained message data approximately, rather than imposing an exact disk quota. The Flink Web UI is at http://localhost:8081 and Grafana is at http://localhost:3000. Follow `processor/README.md` for verification and recovery.
 
 Check container status
 `docker compose -f infra/compose.yml ps`

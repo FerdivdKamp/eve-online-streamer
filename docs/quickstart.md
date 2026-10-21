@@ -55,9 +55,11 @@ Check the job in the Flink Web UI. To follow its output in a separate terminal:
 docker compose -f infra/compose.yml logs -f taskmanager
 ```
 
-The job writes qualifying price-drop alerts to `market.alerts`. Inspect them in Redpanda Console or with `docker exec eve-redpanda rpk topic consume market.alerts -n 1 -o start`. The default minimum is ten prior observations for the same region and item, and the incoming price must be at least 30% below their rolling average. Set `PROCESSOR_DROP_THRESHOLD_PERCENT` before starting Compose to change the threshold.
+The job writes qualifying price-drop alerts to `market.alerts`. Inspect them in Redpanda Console or with `docker exec eve-redpanda rpk topic consume market.alerts -n 1 -o start`. The local Compose demo requires three prior observations for the same region and item, and the incoming price must be at least 30% below their rolling average. Set `PROCESSOR_MIN_OBSERVATIONS` or `PROCESSOR_DROP_THRESHOLD_PERCENT` before starting Compose to change these values.
 
-To generate a known alert after the V2 job is running, run `.\processor\tools\send_alert_example.ps1` from the repository root. It publishes ten 100 ISK observations and one 75 ISK observation for a fresh item ID, then prints that ID. Look it up in Redpanda Console. A normal single producer snapshot may not contain enough prior observations for an alert.
+Changing either setting for a running job requires stopping it with a savepoint and restoring it with the new setting; recreating the job without a savepoint loses its rolling baseline. See [Deploy an update](processor.md#deploy-an-update).
+
+To generate a known alert after the V2 job is running, run `.\processor\tools\send_alert_example.ps1` from the repository root. It publishes three 100 ISK observations and one 70 ISK observation for a fresh item ID, then prints that ID. Look it up in Redpanda Console. A normal single producer snapshot may not contain enough prior observations for an alert.
 
 Submitting the manual command again starts another job. See [Stream processor](processor.md#deploy-an-update) for deploying an update with a savepoint, and [Monitoring](monitoring.md) for the operational dashboard.
 
